@@ -29,6 +29,7 @@ function Printer(adapter, options) {
   this.buffer = new MutableBuffer();
   this.encoding = options && options.encoding || 'GB18030';
   this.width = options && options.width || 48;
+  this.fontSize = { width: 0, height: 0 };
   this._model = null;
 };
 
@@ -213,7 +214,7 @@ Printer.prototype.tableCustom = function (data, options = {}) {
     let tooLong = false
 
     obj.text = obj.text.toString()
-    let textLength = stringWidth(obj.text)
+    let textLength = stringWidth(obj.text) * (this.fontSize.width + 1)
 
     if (obj.width) {
       cellWidth = baseWidth * obj.width
@@ -489,6 +490,7 @@ Printer.prototype.style = function (type) {
 Printer.prototype.size = function (width, height) {
   
   this.buffer.write(_.TEXT_FORMAT.TXT_CUSTOM_SIZE(width, height));
+  this.fontSize = { width: width, height: height };
 
   return this;
 };
