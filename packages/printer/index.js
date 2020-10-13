@@ -229,7 +229,7 @@ Printer.prototype.tableCustom = function (data, options = {}) {
     }
 
     if (align === 'CENTER') {
-      let spaces = (cellWidth - textLength) / 2
+      let spaces = (cellWidth - textLength) / 2 / (this.fontSize.width + 1)
       for (let s = 0; s < spaces; s++) {
         lineStr += ' '
       }
@@ -250,7 +250,7 @@ Printer.prototype.tableCustom = function (data, options = {}) {
         lineStr += ' '
       }
     } else if (align === 'RIGHT') {
-      let spaces = cellWidth - textLength
+      let spaces = Math.floor(cellWidth - textLength) / (this.fontSize.width + 1)
       if (leftoverSpace > 0) {
         spaces += leftoverSpace
         leftoverSpace = 0
@@ -284,7 +284,7 @@ Printer.prototype.tableCustom = function (data, options = {}) {
         }
       }
 
-      let spaces = Math.floor(cellWidth - textLength)
+      let spaces = Math.floor(cellWidth - textLength) / (this.fontSize.width + 1)
       if (leftoverSpace > 0) {
         spaces += leftoverSpace
         leftoverSpace = 0
