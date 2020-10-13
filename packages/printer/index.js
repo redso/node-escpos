@@ -2,6 +2,7 @@
 const util = require('util');
 const qr = require('qr-image');
 const iconv = require('iconv-lite');
+const stringWidth = require('string-width');
 const getPixels = require('get-pixels');
 const { MutableBuffer } = require('mutable-buffer');
 const EventEmitter = require('events');
@@ -212,7 +213,7 @@ Printer.prototype.tableCustom = function (data, options = {}) {
     let tooLong = false
 
     obj.text = obj.text.toString()
-    let textLength = obj.text.length
+    let textLength = stringWidth(obj.text)
 
     if (obj.width) {
       cellWidth = baseWidth * obj.width

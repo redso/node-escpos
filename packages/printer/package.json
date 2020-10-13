@@ -32,7 +32,8 @@
     "get-pixels": "*",
     "iconv-lite": "*",
     "mutable-buffer": "^2.0.3",
-    "qr-image": "*"
+    "qr-image": "*",
+    "string-width": "^4.2.0"
   },
   "devDependencies": {
     "mocha": "*"
