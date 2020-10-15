@@ -199,134 +199,142 @@ Printer.prototype.table = function (data, encoding) {
  * @return {[Printer]} printer  [the escpos printer instance]
  */
 Printer.prototype.tableCustom = function (data, options = {}) {
-  options = options || { size: [], encoding: this.encoding }
-  let [width = 1, height = 1] = options.size || []
-  let baseWidth = Math.floor(this.width / width)
-  let cellWidth = Math.floor(baseWidth / data.length)
-  let leftoverSpace = baseWidth - cellWidth * data.length
-  let lineStr = ''
-  let secondLineEnabled = false
-  let secondLine = []
+  options = options || { size: [], encoding: this.encoding };
 
+  let [width = 0, height = 0] = options.size || [];
+  let baseWidth = Math.floor(this.width / (width + 1));
+
+  // Complete column widths
+  let columnsWidth = [];
+  let leftoverSpace = baseWidth;
+  let autoCountColumns = 0;
+  data.forEach((d, i) => {
+    if (d.width) {
+      const cellWidth = Math.floor(baseWidth * d.width);
+      columnsWidth.push(cellWidth);
+      leftoverSpace -= cellWidth;
+    } else if (d.cols) {
+      const cellWidth = d.cols;
+      columnsWidth.push(cellWidth);
+      leftoverSpace -= cellWidth;
+    } else {
+      columnsWidth.push(-1);
+      autoCountColumns++;
+    }
+  });
+  if (autoCountColumns > 0) {
+    const w = Math.floor(leftoverSpace / autoCountColumns);
+    const lastW = leftoverSpace - w * (autoCountColumns - 1);
+    let replaced = 0;
+    for (let i = 0; i < columnsWidth.length; i++) {
+      if (columnsWidth[i] === -1) {
+        columnsWidth[i] = ++replaced == autoCountColumns ? lastW : w;
+      }
+    }
+  }
+
+  const formattedData = [];
+  // handle multiline
   for (let i = 0; i < data.length; i++) {
-    let obj = data[i]
-    let align = (obj.align || '').toUpperCase()
-    let tooLong = false
-
-    obj.text = obj.text.toString()
-    let textLength = stringWidth(obj.text) * (this.fontSize.width + 1)
-
-    if (obj.width) {
-      cellWidth = baseWidth * obj.width
-    } else if (obj.cols) {
-      cellWidth = obj.cols
-    }
-
-    if (cellWidth < textLength) {
-      tooLong = true
-      obj.originalText = obj.text
-      obj.text = obj.text.substring(0, cellWidth)
-    }
-
-    if (align === 'CENTER') {
-      let spaces = (cellWidth - textLength) / 2 / (this.fontSize.width + 1)
-      for (let s = 0; s < spaces; s++) {
-        lineStr += ' '
-      }
-
-      if (obj.text !== '') {
-        if (obj.style) {
-          lineStr += (
-            this._getStyle(obj.style) +
-            obj.text +
-            this._getStyle("NORMAL")
-          )
-        } else {
-          lineStr += obj.text
-        }
-      }
-
-      for (let s = 0; s < spaces - 1; s++) {
-        lineStr += ' '
-      }
-    } else if (align === 'RIGHT') {
-      let spaces = Math.floor(cellWidth - textLength) / (this.fontSize.width + 1)
-      if (leftoverSpace > 0) {
-        spaces += leftoverSpace
-        leftoverSpace = 0
-      }
-
-      for (let s = 0; s < spaces; s++) {
-        lineStr += ' '
-      }
-
-      if (obj.text !== '') {
-        if (obj.style) {
-          lineStr += (
-            this._getStyle(obj.style) +
-            obj.text +
-            this._getStyle("NORMAL")
-          )
-        } else {
-          lineStr += obj.text
-        }
-      }
-    } else {
-      if (obj.text !== '') {
-        if (obj.style) {
-          lineStr += (
-            this._getStyle(obj.style) +
-            obj.text +
-            this._getStyle("NORMAL")
-          )
-        } else {
-          lineStr += obj.text
-        }
-      }
-
-      let spaces = Math.floor(cellWidth - textLength) / (this.fontSize.width + 1)
-      if (leftoverSpace > 0) {
-        spaces += leftoverSpace
-        leftoverSpace = 0
-      }
-
-      for (let s = 0; s < spaces; s++) {
-        lineStr += ' '
+    const obj = data[i];
+    const text = obj.text;
+    const cellWidth = columnsWidth[i];
+    const trunks = [];
+    let segment = "";
+    for (let i = 0; i < text.length; i++) {
+      const newSegment = segment.concat(text.charAt(i));
+      let textLength = stringWidth(newSegment);
+      if (textLength > cellWidth) {
+        trunks.push(segment);
+        segment = text.charAt(i);
+      } else {
+        segment = newSegment;
       }
     }
-
-    if (tooLong) {
-      secondLineEnabled = true
-      obj.text = obj.originalText.substring(cellWidth)
-      secondLine.push(obj)
-    } else {
-      obj.text = ''
-      secondLine.push(obj)
+    if (segment.length) {
+      trunks.push(segment);
     }
+    formattedData.push({ ...obj, trunks });
   }
 
-  // Set size to line
-  if (width > 1 || height > 1) {
-    lineStr = (
-      _.TEXT_FORMAT.TXT_CUSTOM_SIZE(width, height) +
-      lineStr +
-      _.TEXT_FORMAT.TXT_NORMAL
-    )
+  const maxLines = Math.max(...formattedData.map((d) => d.trunks.length));
+
+  for (let l = 0; l < maxLines; l++) {
+    let lineStr = "";
+    for (let i = 0; i < data.length; i++) {
+      let obj = formattedData[i];
+      let align = (obj.align || "").toUpperCase();
+
+      const text = l < obj.trunks.length ? obj.trunks[l] : "";
+      let textLength = stringWidth(text);
+
+      const cellWidth = columnsWidth[i];
+
+      if (align === "CENTER") {
+        let spaces = Math.floor((cellWidth - textLength) / 2);
+        for (let s = 0; s < spaces; s++) {
+          lineStr += " ";
+        }
+
+        if (text !== "") {
+          if (obj.style) {
+            lineStr +=
+              this._getStyle(obj.style) + text + this._getStyle("NORMAL");
+          } else {
+            lineStr += text;
+          }
+        }
+
+        for (let s = 0; s < cellWidth - textLength - spaces; s++) {
+          lineStr += " ";
+        }
+      } else if (align === "RIGHT") {
+        let spaces = cellWidth - textLength;
+        for (let s = 0; s < spaces; s++) {
+          lineStr += " ";
+        }
+
+        if (text !== "") {
+          if (obj.style) {
+            lineStr +=
+              this._getStyle(obj.style) + text + this._getStyle("NORMAL");
+          } else {
+            lineStr += text;
+          }
+        }
+      } else {
+        if (text !== "") {
+          if (obj.style) {
+            lineStr +=
+              this._getStyle(obj.style) + text + this._getStyle("NORMAL");
+          } else {
+            lineStr += text;
+          }
+        }
+
+        let spaces = Math.floor(cellWidth - textLength);
+        for (let s = 0; s < spaces; s++) {
+          lineStr += " ";
+        }
+      }
+    }
+    console.log(lineStr);
+
+    if (width > 0 || height > 0) {
+      lineStr =
+        _.TEXT_FORMAT.TXT_CUSTOM_SIZE(width, height) +
+        lineStr +
+        _.TEXT_FORMAT.TXT_NORMAL;
+    }
+
+    // Write the line
+    this.buffer.write(
+      iconv.encode(lineStr + _.EOL, options.encoding || this.encoding)
+    );
   }
 
-  // Write the line
-  this.buffer.write(
-    iconv.encode(lineStr + _.EOL, options.encoding || this.encoding)
-  )
-
-  if (secondLineEnabled) {
-    // Writes second line if has
-    return this.tableCustom(secondLine, options)
-  } else {
-    return this
-  }
-}
-
+  return this;
+};
 
 /**
  * [function Print encoded alpha-numeric text without End Of Line]
